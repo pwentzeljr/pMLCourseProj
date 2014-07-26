@@ -1,0 +1,50 @@
+---
+title: "Exercise Prediction"
+date: "July 26, 2014"
+output: html_document
+---
+
+## Summary
+
+The supplied data was cleaned up slightly and then a model was fit with the random forrest methodology. Preprocessing was done by removing variables with incomplete data, and then removing highly correlated variables. Principle component analysis was also run during the model training. The resulting model has an estimated out of bag error rate of 1.53%.
+
+## Data Manipulation
+
+Load in the required libraries and the training dataset.
+
+```{r , message=FALSE}
+library(RCurl)
+library(caret)
+library(randomForest)
+library(doMC)
+registerDoMC(cores = 4)
+
+x <- getURL("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+training <- read.csv(text=x, na.strings=c("NA", ""))
+```
+
+Running a quick `str(training)` shows that there are a lot of variables that have a significant number of "NA" values, which are unlikely to be very helpful for prediction. So they were removed. Additionally, I saw that the initial few columns involve factor vaiables and timestamps. The factors would hinder further investigations into a largely numeric dataset and provide complications which ccould reduce the applicability of the model outside the training data, so they were removed. The timestamps were also removed, which was a judgement call based on prior weightlifting experience. 
+
+```{r}
+training <- training[, which(as.numeric(colSums(is.na(training)))==0)]
+training <- training[, seq(-1,-6,-1)]
+```
+
+Which leaves 54 variables in play. To trim this down a bit more we remove those that are highly correlated.
+
+```{r}
+trainCor <- cor(training[-54])
+highCor <- findCorrelation(trainCor, cutoff=0.75)
+training <- training[, -highCor]
+```
+
+## Fitting the Model  
+
+At 34 variables, and given the system I'm working on, I'm comfortable running the train function to create a model. this was done with PCA preprocessing and using the random forest method. It should be noted that the use of random forest eliminates the need to cross validate, as the sample is bootstrapped repeatedly.
+
+The final model shows an estimated oob error rate of 1.53% 
+
+```{r}
+modelFit <- train(training$classe ~ ., method="rf", data=training, preProcess="pca")
+modelFit$finalModel
+```
